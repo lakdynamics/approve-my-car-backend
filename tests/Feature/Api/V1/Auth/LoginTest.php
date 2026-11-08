@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Api\V1\Auth;
 
+use App\Enums\UserType;
 use App\Models\RefreshToken;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -26,13 +28,23 @@ class LoginTest extends TestCase
                 'access_token_expires_at',
                 'refresh_token',
                 'refresh_token_expires_at',
-                'user' => ['id', 'first_name', 'last_name', 'email', 'email_verified_at'],
+                'user' => ['id', 'first_name', 'last_name', 'email', 'type', 'email_verified_at'],
             ]])
             ->assertJsonPath('data.token_type', 'Bearer')
             ->assertJsonPath('data.user.email', $user->email)
+            ->assertJsonPath('data.user.type', UserType::User->value)
             ->assertJsonMissingPath('data.user.password');
 
         $this->assertNotNull($user->fresh()->last_login_at);
+    }
+
+    public function test_login_returns_the_users_type(): void
+    {
+        $admin = User::factory()->admin()->create(['password' => self::PASSWORD]);
+        $inspector = User::factory()->inspector()->create(['password' => self::PASSWORD]);
+
+        $this->assertSame(UserType::Admin->value, $this->signIn($admin)['user']['type']);
+        $this->assertSame(UserType::Inspector->value, $this->signIn($inspector)['user']['type']);
     }
 
     public function test_refresh_token_is_stored_only_as_a_hash(): void

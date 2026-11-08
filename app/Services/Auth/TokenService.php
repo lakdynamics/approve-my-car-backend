@@ -116,6 +116,39 @@ class TokenService
     }
 
     /**
+     * Sign a user out on every device.
+     */
+    public function revokeAllFor(User $user): void
+    {
+        DB::transaction(function () use ($user) {
+            $user->tokens()->delete();
+
+            $user->refreshTokens()
+                ->whereNull('revoked_at')
+                ->update(['revoked_at' => now()]);
+        });
+    }
+
+    /**
+     * Sign a user out on every device except the one making this request.
+     */
+    public function revokeAllExcept(User $user, PersonalAccessToken $keep): void
+    {
+        DB::transaction(function () use ($user, $keep) {
+            $keepFamilyId = RefreshToken::query()
+                ->where('access_token_id', $keep->getKey())
+                ->value('family_id');
+
+            $user->tokens()->whereKeyNot($keep->getKey())->delete();
+
+            $user->refreshTokens()
+                ->whereNull('revoked_at')
+                ->when($keepFamilyId !== null, fn ($query) => $query->where('family_id', '!=', $keepFamilyId))
+                ->update(['revoked_at' => now()]);
+        });
+    }
+
+    /**
      * Revoke every refresh token of one device session and delete its access tokens.
      */
     private function revokeFamily(string $familyId): void

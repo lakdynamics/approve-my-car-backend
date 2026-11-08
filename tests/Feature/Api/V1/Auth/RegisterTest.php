@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api\V1\Auth;
 
+use App\Enums\UserType;
 use App\Models\User;
 use App\Notifications\Auth\AccountAlreadyExistsNotification;
 use App\Notifications\Auth\RegistrationCodeNotification;
@@ -44,6 +45,7 @@ class RegisterTest extends TestCase
             ->assertJsonPath('data.first_name', 'Nimal')
             ->assertJsonPath('data.last_name', 'Perera')
             ->assertJsonPath('data.email', self::EMAIL)
+            ->assertJsonPath('data.type', UserType::User->value)
             ->assertJsonPath('message', 'Your account has been created. Please sign in.')
             ->assertJsonMissingPath('data.password');
 
@@ -54,6 +56,18 @@ class RegisterTest extends TestCase
         $this->assertNotNull($user->email_verified_at);
         $this->assertNotSame('Secret123', $user->password);
         $this->assertTrue(Hash::check('Secret123', $user->password));
+        $this->assertSame(UserType::User, $user->type);
+    }
+
+    public function test_sign_up_cannot_choose_its_own_type(): void
+    {
+        $this->register(['type' => UserType::Admin->value]);
+
+        $this->verify(self::EMAIL, $this->codeSentTo(self::EMAIL))
+            ->assertCreated()
+            ->assertJsonPath('data.type', UserType::User->value);
+
+        $this->assertSame(UserType::User, User::sole()->type);
     }
 
     public function test_wrong_code_is_rejected(): void

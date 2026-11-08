@@ -2,6 +2,7 @@
 
 namespace App\Services\Auth;
 
+use App\Enums\UserType;
 use App\Enums\VerificationCodePurpose;
 use App\Exceptions\Auth\InvalidVerificationCodeException;
 use App\Models\User;
@@ -86,6 +87,8 @@ class RegistrationService
 
         // Not fillable on purpose: only this code path may mark an email verified.
         $user->email_verified_at = now();
+        // Everyone who signs up through the app is a normal user.
+        $user->type = UserType::User;
         $user->save();
 
         return $user;
