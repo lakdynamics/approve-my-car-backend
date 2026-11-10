@@ -7,6 +7,7 @@ use App\Exceptions\Bookings\BookingAlreadyTakenException;
 use App\Exceptions\Bookings\InvalidBookingStatusException;
 use App\Models\Booking;
 use App\Models\User;
+use App\Services\Notifications\BookingNotificationService;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\DB;
  */
 class InspectorBookingService
 {
+    public function __construct(private BookingNotificationService $notifications) {}
+
     /**
      * Claim a pending booking. Only one inspector can win: the update only
      * succeeds while the booking is still pending.
@@ -23,36 +26,40 @@ class InspectorBookingService
      */
     public function accept(Booking $booking, User $inspector): Booking
     {
-        if ($booking->scheduled_date->toDateString() < Booking::localToday()->toDateString()) {
-            throw new InvalidBookingStatusException("This booking's date has passed.");
-        }
+        return DB::transaction(function () use ($booking, $inspector): Booking {
+            if ($booking->scheduled_date->toDateString() < Booking::localToday()->toDateString()) {
+                throw new InvalidBookingStatusException("This booking's date has passed.");
+            }
 
-        $claimed = Booking::query()
-            ->whereKey($booking->id)
-            ->where('status', BookingStatus::Pending)
-            ->update([
-                'status' => BookingStatus::Accepted->value,
-                'inspector_id' => $inspector->id,
-                'accepted_at' => now(),
-                'updated_at' => now(),
-            ]);
+            $claimed = Booking::query()
+                ->whereKey($booking->id)
+                ->where('status', BookingStatus::Pending)
+                ->update([
+                    'status' => BookingStatus::Accepted->value,
+                    'inspector_id' => $inspector->id,
+                    'accepted_at' => now(),
+                    'updated_at' => now(),
+                ]);
 
-        $booking->refresh();
+            $booking->refresh();
 
-        if ($claimed === 1) {
-            return $booking;
-        }
+            if ($claimed === 1) {
+                $this->notifications->statusChanged($booking);
 
-        if ($booking->status === BookingStatus::Cancelled) {
-            throw new InvalidBookingStatusException('This booking was cancelled by the customer.');
-        }
+                return $booking;
+            }
 
-        if ($booking->inspector_id === $inspector->id) {
-            // Already accepted by this inspector, e.g. a double tap.
-            return $booking;
-        }
+            if ($booking->status === BookingStatus::Cancelled) {
+                throw new InvalidBookingStatusException('This booking was cancelled by the customer.');
+            }
 
-        throw new BookingAlreadyTakenException;
+            if ($booking->inspector_id === $inspector->id) {
+                // Already accepted by this inspector, e.g. a double tap.
+                return $booking;
+            }
+
+            throw new BookingAlreadyTakenException;
+        });
     }
 
     /**
@@ -106,6 +113,8 @@ class InspectorBookingService
 
             $change($booking);
             $booking->save();
+
+            $this->notifications->statusChanged($booking);
 
             return $booking;
         });

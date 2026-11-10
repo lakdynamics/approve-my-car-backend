@@ -5,6 +5,7 @@ namespace App\Services\Profile;
 use App\Enums\BookingStatus;
 use App\Models\User;
 use App\Services\Auth\TokenService;
+use App\Services\Bookings\BookingService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -14,7 +15,7 @@ use Laravel\Sanctum\PersonalAccessToken;
  */
 class AccountService
 {
-    public function __construct(private TokenService $tokens) {}
+    public function __construct(private TokenService $tokens, private BookingService $bookings) {}
 
     /**
      * Set a new password and sign out every other device. The device
@@ -50,17 +51,15 @@ class AccountService
             // turn up. One already in progress is left for the inspector.
             $user->bookings()
                 ->whereIn('status', [BookingStatus::Pending, BookingStatus::Accepted])
-                ->update([
-                    'status' => BookingStatus::Cancelled->value,
-                    'cancelled_at' => now(),
-                    'cancellation_reason' => 'Account deleted',
-                    'updated_at' => now(),
-                ]);
+                ->lockForUpdate()->get()->each(function ($booking): void {
+                    $this->bookings->cancel($booking, 'Account deleted');
+                });
 
             // Vehicles are soft deleted to keep history; addresses are
             // personal data with no history value, so they are removed.
             $user->vehicles()->delete();
             $user->addresses()->delete();
+            $user->notifications()->delete();
 
             $user->forceFill([
                 'first_name' => 'Deleted',

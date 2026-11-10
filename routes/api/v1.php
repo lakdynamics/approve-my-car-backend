@@ -1,4 +1,6 @@
 <?php
+
+use App\Http\Controllers\Api\V1\AddressController;
 use App\Http\Controllers\Api\V1\Admin\BookingController as AdminBookingController;
 use App\Http\Controllers\Api\V1\Admin\ChecklistController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
@@ -8,17 +10,18 @@ use App\Http\Controllers\Api\V1\Admin\VehicleMakeController as AdminVehicleMakeC
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\RefreshTokenController;
 use App\Http\Controllers\Api\V1\Auth\RegisterController;
-use App\Http\Controllers\Api\V1\AddressController;
 use App\Http\Controllers\Api\V1\BookingController;
+use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\Inspector\BookingController as InspectorBookingController;
 use App\Http\Controllers\Api\V1\MeController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\ProfileController;
 use App\Http\Controllers\Api\V1\VehicleController;
 use App\Http\Controllers\Api\V1\VehicleMakeController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('health', fn () => response()->json(['status' => 'ok']))->name('health');
-Route::prefix('auth')->name('auth.')->group(function(){
+Route::prefix('auth')->name('auth.')->group(function () {
     Route::post('register', [RegisterController::class, 'store'])
         ->middleware('throttle:auth-register')
         ->name('register');
@@ -44,7 +47,17 @@ Route::prefix('auth')->name('auth.')->group(function(){
         ->name('logout');
 });
 
-Route::middleware('auth:sanctum')->group(function(){
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('notifications.unread-count');
+    Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
+    Route::patch('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
+        ->whereUuid('notification')->name('notifications.read');
+    Route::post('device-tokens', [DeviceTokenController::class, 'store'])
+        ->middleware('throttle:60,1')->name('device-tokens.store');
+    Route::delete('device-tokens/{device}', [DeviceTokenController::class, 'destroy'])
+        ->whereUuid('device')->name('device-tokens.destroy');
+
     Route::get('me', MeController::class)->name('me');
     Route::patch('me', [ProfileController::class, 'update'])->name('me.update');
     Route::put('me/password', [ProfileController::class, 'updatePassword'])
@@ -74,7 +87,7 @@ Route::prefix('inspector')->name('inspector.')->middleware(['auth:sanctum', 'can
     Route::post('bookings/{booking}/complete', [InspectorBookingController::class, 'complete'])->name('bookings.complete');
 });
 
-Route::prefix('admin')->name('admin.')->middleware(['auth:sanctum', 'can:admin'])->group(function(){
+Route::prefix('admin')->name('admin.')->middleware(['auth:sanctum', 'can:admin'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('users', [AdminUserController::class, 'index'])->name('users.index');
     Route::get('inspectors', [InspectorController::class, 'index'])->name('inspectors.index');
