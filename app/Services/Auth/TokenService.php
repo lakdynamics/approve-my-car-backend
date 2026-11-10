@@ -3,6 +3,7 @@
 namespace App\Services\Auth;
 
 use App\Exceptions\Auth\InvalidRefreshTokenException;
+use App\Models\DeviceToken;
 use App\Models\RefreshToken;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -121,6 +122,7 @@ class TokenService
     public function revokeAllFor(User $user): void
     {
         DB::transaction(function () use ($user) {
+            $user->deviceTokens()->delete();
             $user->tokens()->delete();
 
             $user->refreshTokens()
@@ -141,6 +143,10 @@ class TokenService
 
             $user->tokens()->whereKeyNot($keep->getKey())->delete();
 
+            $user->deviceTokens()
+                ->when($keepFamilyId !== null, fn ($query) => $query->where(fn ($query) => $query->whereNull('family_id')->orWhere('family_id', '!=', $keepFamilyId)))
+                ->delete();
+
             $user->refreshTokens()
                 ->whereNull('revoked_at')
                 ->when($keepFamilyId !== null, fn ($query) => $query->where('family_id', '!=', $keepFamilyId))
@@ -153,6 +159,8 @@ class TokenService
      */
     private function revokeFamily(string $familyId): void
     {
+        DeviceToken::query()->where('family_id', $familyId)->delete();
+
         $accessTokenIds = RefreshToken::query()
             ->where('family_id', $familyId)
             ->whereNotNull('access_token_id')

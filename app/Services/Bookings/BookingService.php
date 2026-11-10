@@ -9,6 +9,7 @@ use App\Models\Booking;
 use App\Models\User;
 use App\Models\UserAddress;
 use App\Models\Vehicle;
+use App\Services\Notifications\BookingNotificationService;
 use App\Services\Vehicles\VehicleMakeResolver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -18,7 +19,7 @@ use Illuminate\Validation\ValidationException;
  */
 class BookingService
 {
-    public function __construct(private VehicleMakeResolver $makes) {}
+    public function __construct(private VehicleMakeResolver $makes, private BookingNotificationService $notifications) {}
 
     /**
      * Create a booking from already-validated input (StoreBookingRequest).
@@ -53,6 +54,8 @@ class BookingService
                 'notes' => $data['notes'] ?? null,
             ])->save();
 
+            $this->notifications->created($booking);
+
             return $booking;
         });
     }
@@ -80,6 +83,8 @@ class BookingService
                 'cancelled_at' => now(),
                 'cancellation_reason' => $reason,
             ])->save();
+
+            $this->notifications->statusChanged($booking);
 
             return $booking;
         });
