@@ -114,4 +114,39 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Email Verification Codes
+    |--------------------------------------------------------------------------
+    |
+    | Codes emailed during registration. A code expires after the given
+    | number of minutes and stops working after too many wrong attempts.
+    | A new code may only be requested once the cooldown has passed, and
+    | only a limited number of codes may be sent to one email per hour.
+    |
+    */
+
+    'verification_codes' => [
+        'length' => (int) env('AUTH_CODE_LENGTH', 6),
+        'expire_minutes' => (int) env('AUTH_CODE_EXPIRE_MINUTES', 10),
+        'max_attempts' => (int) env('AUTH_CODE_MAX_ATTEMPTS', 5),
+        'resend_cooldown_seconds' => (int) env('AUTH_CODE_RESEND_COOLDOWN_SECONDS', 60),
+        'max_per_hour' => (int) env('AUTH_CODE_MAX_PER_HOUR', 5),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | API Tokens
+    |--------------------------------------------------------------------------
+    |
+    | Signing in returns a short-lived access token (sent on every request)
+    | and a long-lived refresh token (used only to get a new token pair).
+    |
+    */
+
+    'tokens' => [
+        'access_token_minutes' => (int) env('AUTH_ACCESS_TOKEN_MINUTES', 30),
+        'refresh_token_days' => (int) env('AUTH_REFRESH_TOKEN_DAYS', 30),
+    ],
+
 ];

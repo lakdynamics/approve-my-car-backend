@@ -1,15 +1,15 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+|
+| Each API version lives in its own file under routes/api/. Breaking
+| changes go into a new version, so existing app releases keep working.
+|
+*/
 
-Route::get('/v1/ping', function (){
-    return response()->json([
-        'status' => 'success',
-        'message' => 'Laravel API is working'
-    ]);
-});
+Route::prefix('v1')->name('v1.')->group(base_path('routes/api/v1.php'));
