@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AddressController;
 use App\Http\Controllers\Api\V1\Admin\BookingController as AdminBookingController;
+use App\Http\Controllers\Api\V1\Admin\ChecklistAnswerSetController;
 use App\Http\Controllers\Api\V1\Admin\ChecklistController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController;
 use App\Http\Controllers\Api\V1\Admin\InspectorController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\Inspector\BookingController as InspectorBookingController;
+use App\Http\Controllers\Api\V1\Inspector\InspectionController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\ProfileController;
@@ -85,6 +87,11 @@ Route::prefix('inspector')->name('inspector.')->middleware(['auth:sanctum', 'can
     Route::post('bookings/{booking}/accept', [InspectorBookingController::class, 'accept'])->name('bookings.accept');
     Route::post('bookings/{booking}/start', [InspectorBookingController::class, 'start'])->name('bookings.start');
     Route::post('bookings/{booking}/complete', [InspectorBookingController::class, 'complete'])->name('bookings.complete');
+
+    Route::get('bookings/{booking}/inspection', [InspectionController::class, 'show'])->name('inspections.show');
+    Route::patch('bookings/{booking}/inspection/answers', [InspectionController::class, 'saveAnswers'])->name('inspections.answers');
+    Route::patch('bookings/{booking}/inspection/sections/{inspectionSection}', [InspectionController::class, 'updateSection'])
+        ->name('inspections.sections.update');
 });
 
 Route::prefix('admin')->name('admin.')->middleware(['auth:sanctum', 'can:admin'])->group(function () {
@@ -108,5 +115,12 @@ Route::prefix('admin')->name('admin.')->middleware(['auth:sanctum', 'can:admin']
         Route::post('sections/{section}/items', [ChecklistController::class, 'storeItem'])->name('items.store');
         Route::put('sections/{section}/items/order', [ChecklistController::class, 'reorderItems'])->name('items.order');
         Route::patch('items/{item}', [ChecklistController::class, 'updateItem'])->name('items.update');
+
+        Route::get('answer-sets', [ChecklistAnswerSetController::class, 'index'])->name('answer-sets.index');
+        Route::post('answer-sets', [ChecklistAnswerSetController::class, 'store'])->name('answer-sets.store');
+        Route::patch('answer-sets/{answerSet}', [ChecklistAnswerSetController::class, 'update'])->name('answer-sets.update');
+        Route::post('answer-sets/{answerSet}/options', [ChecklistAnswerSetController::class, 'storeOption'])->name('answer-options.store');
+        Route::put('answer-sets/{answerSet}/options/order', [ChecklistAnswerSetController::class, 'reorderOptions'])->name('answer-options.order');
+        Route::patch('answer-options/{answerOption}', [ChecklistAnswerSetController::class, 'updateOption'])->name('answer-options.update');
     });
 });

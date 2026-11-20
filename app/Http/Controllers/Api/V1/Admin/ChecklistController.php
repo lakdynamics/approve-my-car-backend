@@ -36,7 +36,7 @@ class ChecklistController extends Controller
 
         $sections = ChecklistSection::query()
             ->unless($all, fn ($query) => $query->active())
-            ->with(['items' => fn ($query) => $query->unless($all, fn ($query) => $query->active())])
+            ->with(['items' => fn ($query) => $query->unless($all, fn ($query) => $query->active()), 'items.answerSet.options'])
             ->ordered()
             ->get();
 
@@ -50,7 +50,7 @@ class ChecklistController extends Controller
     {
         $section = $this->checklist->createSection($request->validated());
 
-        return (new ChecklistSectionResource($section->load('items')))->response()->setStatusCode(201);
+        return (new ChecklistSectionResource($section->load('items.answerSet.options')))->response()->setStatusCode(201);
     }
 
     /**
@@ -60,7 +60,7 @@ class ChecklistController extends Controller
     {
         $section->update($request->validated());
 
-        return new ChecklistSectionResource($section->load('items'));
+        return new ChecklistSectionResource($section->load('items.answerSet.options'));
     }
 
     /**
@@ -80,7 +80,7 @@ class ChecklistController extends Controller
     {
         $item = $this->checklist->createItem($section, $request->validated());
 
-        return (new ChecklistItemResource($item))->response()->setStatusCode(201);
+        return (new ChecklistItemResource($item->load('answerSet.options')))->response()->setStatusCode(201);
     }
 
     /**
@@ -88,7 +88,7 @@ class ChecklistController extends Controller
      */
     public function updateItem(UpdateItemRequest $request, ChecklistItem $item): ChecklistItemResource
     {
-        return new ChecklistItemResource($this->checklist->updateItem($item, $request->validated()));
+        return new ChecklistItemResource($this->checklist->updateItem($item, $request->validated())->load('answerSet.options'));
     }
 
     /**
@@ -98,6 +98,6 @@ class ChecklistController extends Controller
     {
         $this->checklist->reorderItems($section, $request->validated('ids'));
 
-        return new ChecklistSectionResource($section->load('items'));
+        return new ChecklistSectionResource($section->load('items.answerSet.options'));
     }
 }

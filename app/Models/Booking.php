@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * A customer's request to have a vehicle inspected at a place and time.
@@ -103,6 +104,16 @@ class Booking extends Model
     public function address(): BelongsTo
     {
         return $this->belongsTo(UserAddress::class);
+    }
+
+    /**
+     * The filled-in checklist, created when the inspection starts.
+     *
+     * @return HasOne<Inspection, $this>
+     */
+    public function inspection(): HasOne
+    {
+        return $this->hasOne(Inspection::class);
     }
 
     /**

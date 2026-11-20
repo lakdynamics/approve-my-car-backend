@@ -6,7 +6,8 @@ use App\Models\ChecklistItem;
 use Illuminate\Contracts\Validation\ValidationRule;
 
 /**
- * Edit, hide or move an item. Send only what changes.
+ * Edit, hide or move an item, or change how it's answered.
+ * Send only what changes.
  */
 class UpdateItemRequest extends StoreItemRequest
 {
@@ -31,14 +32,16 @@ class UpdateItemRequest extends StoreItemRequest
             'description' => ['sometimes', 'nullable', 'string', 'max:500'],
             'is_active' => ['sometimes', 'boolean'],
             'checklist_section_id' => ['sometimes', 'integer', 'exists:checklist_sections,id'],
+            ...$this->answerRules($this->item()),
         ];
     }
 
     public function messages(): array
     {
         return [
-            ...parent::messages(),
+            'label.unique' => 'This section already has an item with this label.',
             'checklist_section_id.exists' => 'Select an existing section.',
+            ...$this->answerMessages($this->item()),
         ];
     }
 

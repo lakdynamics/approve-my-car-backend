@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call(VehicleMakeSeeder::class);
+        $this->call([VehicleMakeSeeder::class, ChecklistAnswerSetSeeder::class, ChecklistTemplateSeeder::class]);
 
         // User::factory(10)->create();
 
