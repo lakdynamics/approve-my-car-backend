@@ -7,6 +7,7 @@ use App\Exceptions\Bookings\BookingAlreadyTakenException;
 use App\Exceptions\Bookings\InvalidBookingStatusException;
 use App\Models\Booking;
 use App\Models\User;
+use App\Services\Inspections\InspectionService;
 use App\Services\Notifications\BookingNotificationService;
 use Illuminate\Support\Facades\DB;
 
@@ -15,7 +16,10 @@ use Illuminate\Support\Facades\DB;
  */
 class InspectorBookingService
 {
-    public function __construct(private BookingNotificationService $notifications) {}
+    public function __construct(
+        private BookingNotificationService $notifications,
+        private InspectionService $inspections,
+    ) {}
 
     /**
      * Claim a pending booking. Only one inspector can win: the update only
@@ -76,15 +80,25 @@ class InspectorBookingService
                 'status' => BookingStatus::InProgress,
                 'started_at' => now(),
             ]);
+
+            $this->inspections->createFor($booking);
         });
     }
 
     /**
+     * Only once every required checklist item is answered. The answers
+     * can't be changed after this.
+     *
      * @throws InvalidBookingStatusException
      */
     public function complete(Booking $booking): Booking
     {
         return $this->move($booking, BookingStatus::InProgress, function (Booking $booking) {
+            // Bookings started before checklists existed get theirs here.
+            $inspection = $this->inspections->createFor($booking);
+            $this->inspections->assertComplete($inspection);
+            $this->inspections->markCompleted($inspection);
+
             $booking->forceFill([
                 'status' => BookingStatus::Completed,
                 'completed_at' => now(),

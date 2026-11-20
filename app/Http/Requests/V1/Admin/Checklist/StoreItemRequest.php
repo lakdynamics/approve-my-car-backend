@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\V1\Admin\Checklist;
 
+use App\Http\Requests\V1\Admin\Checklist\Concerns\ValidatesAnswerType;
 use App\Models\ChecklistItem;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -11,6 +12,8 @@ use Illuminate\Validation\Rules\Unique;
 
 class StoreItemRequest extends FormRequest
 {
+    use ValidatesAnswerType;
+
     /**
      * The route's "can:admin" middleware already checked who is calling.
      */
@@ -34,6 +37,7 @@ class StoreItemRequest extends FormRequest
         return [
             'label' => ['required', 'string', 'max:150', $this->uniqueLabelIn($this->route('section')->id)],
             'description' => ['nullable', 'string', 'max:500'],
+            ...$this->answerRules(),
         ];
     }
 
@@ -41,6 +45,7 @@ class StoreItemRequest extends FormRequest
     {
         return [
             'label.unique' => 'This section already has an item with this label.',
+            ...$this->answerMessages(),
         ];
     }
 

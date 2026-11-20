@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api\V1\Admin;
 
+use App\Models\ChecklistAnswerSet;
 use App\Models\ChecklistItem;
 use App\Models\ChecklistSection;
 use App\Models\User;
@@ -59,13 +60,13 @@ class ChecklistTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.sort_order', 2);
 
-        $this->postJson("/api/v1/admin/checklist/sections/{$engine}/items", ['label' => 'Oil level', 'description' => 'Check dipstick'])
+        $this->postJson("/api/v1/admin/checklist/sections/{$engine}/items", ['label' => 'Oil level', 'description' => 'Check dipstick', 'answer_type' => 'text'])
             ->assertCreated()
             ->assertJsonPath('data.label', 'Oil level')
             ->assertJsonPath('data.checklist_section_id', $engine)
             ->assertJsonPath('data.sort_order', 1);
 
-        $this->postJson("/api/v1/admin/checklist/sections/{$engine}/items", ['label' => 'Coolant level'])
+        $this->postJson("/api/v1/admin/checklist/sections/{$engine}/items", ['label' => 'Coolant level', 'answer_type' => 'text'])
             ->assertJsonPath('data.sort_order', 2);
 
         $this->getJson('/api/v1/admin/checklist')
@@ -82,18 +83,18 @@ class ChecklistTest extends TestCase
         $this->actingAsAdmin();
         $engine = ChecklistSection::factory()->create(['name' => 'Engine']);
         $exterior = ChecklistSection::factory()->create(['name' => 'Exterior']);
-        ChecklistItem::factory()->for($engine, 'section')->create(['label' => 'Leaks']);
+        ChecklistItem::factory()->for($engine, 'section')->create(['label' => 'Leaks', 'answer_type' => 'text']);
 
         $this->postJson('/api/v1/admin/checklist/sections', ['name' => 'engine'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['name' => 'A section with this name already exists.']);
 
-        $this->postJson("/api/v1/admin/checklist/sections/{$engine->id}/items", ['label' => 'Leaks'])
+        $this->postJson("/api/v1/admin/checklist/sections/{$engine->id}/items", ['label' => 'Leaks', 'answer_type' => 'text'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['label' => 'This section already has an item with this label.']);
 
         // The same label in another section is fine.
-        $this->postJson("/api/v1/admin/checklist/sections/{$exterior->id}/items", ['label' => 'Leaks'])->assertCreated();
+        $this->postJson("/api/v1/admin/checklist/sections/{$exterior->id}/items", ['label' => 'Leaks', 'answer_type' => 'text'])->assertCreated();
     }
 
     public function test_admin_edits_and_hides(): void
@@ -185,6 +186,123 @@ class ChecklistTest extends TestCase
         $this->putJson("/api/v1/admin/checklist/sections/{$a->id}/items/order", ['ids' => [$item->id, $foreign->id]])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['ids' => 'Send every item id exactly once.']);
+    }
+
+    public function test_choice_items_need_an_active_answer_list(): void
+    {
+        $this->actingAsAdmin();
+        $section = ChecklistSection::factory()->create();
+        $condition = ChecklistAnswerSet::factory()->withOptions()->create(['name' => 'Condition']);
+        $hidden = ChecklistAnswerSet::factory()->hidden()->withOptions()->create();
+        $uri = "/api/v1/admin/checklist/sections/{$section->id}/items";
+
+        $this->postJson($uri, ['label' => 'Brakes'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('answer_type');
+
+        $this->postJson($uri, ['label' => 'Brakes', 'answer_type' => 'choice'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['checklist_answer_set_id' => 'Select an answer list.']);
+
+        $this->postJson($uri, ['label' => 'Brakes', 'answer_type' => 'choice', 'checklist_answer_set_id' => $hidden->id])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['checklist_answer_set_id' => 'Select an active answer list.']);
+
+        $this->postJson($uri, ['label' => 'Brakes', 'answer_type' => 'choice', 'checklist_answer_set_id' => $condition->id, 'unit' => 'km'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['unit' => 'Not used for choice items.']);
+
+        $this->postJson($uri, ['label' => 'Brakes', 'answer_type' => 'choice', 'checklist_answer_set_id' => $condition->id])
+            ->assertCreated()
+            ->assertJsonPath('data.answer_type', 'choice')
+            ->assertJsonPath('data.answer_set.name', 'Condition')
+            ->assertJsonPath('data.answer_set.options.0.label', 'Good')
+            ->assertJsonPath('data.answer_set.options.1.outcome', 'problem');
+
+        $this->getJson('/api/v1/admin/checklist')
+            ->assertJsonPath('data.0.items.0.answer_set.options.2.outcome', 'not_applicable');
+    }
+
+    public function test_number_and_percentage_settings(): void
+    {
+        $this->actingAsAdmin();
+        $section = ChecklistSection::factory()->create();
+        $uri = "/api/v1/admin/checklist/sections/{$section->id}/items";
+
+        $this->postJson($uri, ['label' => 'ODO reading', 'answer_type' => 'number', 'unit' => 'km', 'min_value' => 0, 'max_value' => 2000000, 'problem_above' => 300000])
+            ->assertCreated()
+            ->assertJsonPath('data.unit', 'km')
+            ->assertJsonPath('data.max_value', 2000000)
+            ->assertJsonPath('data.problem_above', 300000)
+            ->assertJsonPath('data.answer_set', null);
+
+        $this->postJson($uri, ['label' => 'Doors', 'answer_type' => 'number', 'min_value' => 6, 'max_value' => 2])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['max_value' => 'The maximum must be at least the minimum.']);
+
+        $this->postJson($uri, ['label' => 'Tyre wear', 'answer_type' => 'percentage', 'problem_above' => 120, 'unit' => '%'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['problem_above', 'unit' => 'Not used for percentage items.']);
+
+        $this->postJson($uri, ['label' => 'Tyre wear', 'answer_type' => 'percentage', 'problem_above' => 80])
+            ->assertCreated()
+            ->assertJsonPath('data.problem_above', 80);
+    }
+
+    public function test_editing_a_number_item_keeps_the_range_in_order(): void
+    {
+        $this->actingAsAdmin();
+        $item = ChecklistItem::factory()->number()->create(['min_value' => 0, 'max_value' => 10]);
+
+        $this->patchJson("/api/v1/admin/checklist/items/{$item->id}", ['min_value' => 20])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('min_value');
+
+        $this->patchJson("/api/v1/admin/checklist/items/{$item->id}", ['unit' => 'doors'])
+            ->assertOk()
+            ->assertJsonPath('data.unit', 'doors')
+            ->assertJsonPath('data.max_value', 10);
+    }
+
+    public function test_changing_the_answer_type_clears_unused_settings(): void
+    {
+        $this->actingAsAdmin();
+        $item = ChecklistItem::factory()->number()->create(['problem_above' => 5]);
+        $list = ChecklistAnswerSet::factory()->withOptions()->create();
+
+        $this->patchJson("/api/v1/admin/checklist/items/{$item->id}", ['answer_type' => 'choice'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('checklist_answer_set_id');
+
+        $this->patchJson("/api/v1/admin/checklist/items/{$item->id}", ['answer_type' => 'choice', 'checklist_answer_set_id' => $list->id])
+            ->assertOk()
+            ->assertJsonPath('data.answer_set.id', $list->id)
+            ->assertJsonPath('data.unit', null)
+            ->assertJsonPath('data.min_value', null)
+            ->assertJsonPath('data.problem_above', null);
+
+        $this->patchJson("/api/v1/admin/checklist/items/{$item->id}", ['answer_type' => 'text'])
+            ->assertOk()
+            ->assertJsonPath('data.answer_set', null);
+        $this->assertNull($item->fresh()->checklist_answer_set_id);
+    }
+
+    public function test_an_item_can_keep_its_answer_list_after_the_list_is_hidden(): void
+    {
+        $this->actingAsAdmin();
+        $list = ChecklistAnswerSet::factory()->withOptions()->create();
+        $item = ChecklistItem::factory()->choice($list)->hidden()->create();
+        $list->update(['is_active' => false]);
+
+        $this->patchJson("/api/v1/admin/checklist/items/{$item->id}", ['label' => 'Renamed', 'checklist_answer_set_id' => $list->id])
+            ->assertOk()
+            ->assertJsonPath('data.answer_set.id', $list->id);
+
+        // Another item can't start using the hidden list.
+        $other = ChecklistItem::factory()->choice()->create();
+        $this->patchJson("/api/v1/admin/checklist/items/{$other->id}", ['checklist_answer_set_id' => $list->id])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['checklist_answer_set_id' => 'Select an active answer list.']);
     }
 
     private function actingAsAdmin(): void
